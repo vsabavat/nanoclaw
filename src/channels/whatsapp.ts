@@ -204,6 +204,12 @@ export class WhatsAppChannel implements Channel {
             msg.message?.videoMessage?.caption ||
             '';
 
+          const replyToId =
+            msg.message?.extendedTextMessage?.contextInfo?.stanzaId ||
+            msg.message?.imageMessage?.contextInfo?.stanzaId ||
+            msg.message?.videoMessage?.contextInfo?.stanzaId ||
+            undefined;
+
           // Skip protocol messages with no text content (encryption keys, read receipts, etc.)
           // but allow voice messages through for transcription
           if (!content && !isVoiceMessage(msg)) continue;
@@ -249,6 +255,7 @@ export class WhatsAppChannel implements Channel {
             timestamp,
             is_from_me: fromMe,
             is_bot_message: isBotMessage,
+            reply_to_id: replyToId,
           });
         }
       }
