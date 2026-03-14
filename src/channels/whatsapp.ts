@@ -210,6 +210,7 @@ export class WhatsAppChannel implements Channel {
               normalized.extendedTextMessage?.contextInfo ||
               normalized.imageMessage?.contextInfo ||
               normalized.videoMessage?.contextInfo ||
+              normalized.documentMessage?.contextInfo ||
               undefined;
 
             const replyToId = contextInfo?.stanzaId || undefined;
@@ -221,7 +222,9 @@ export class WhatsAppChannel implements Channel {
                 quotedMsg.extendedTextMessage?.text ||
                 quotedMsg.imageMessage?.caption ||
                 quotedMsg.videoMessage?.caption ||
+                quotedMsg.documentMessage?.caption ||
                 (quotedMsg.audioMessage ? '[Voice Message]' : undefined) ||
+                (quotedMsg.documentMessage ? '[Document]' : undefined) ||
                 undefined
               : undefined;
 
@@ -246,6 +249,38 @@ export class WhatsAppChannel implements Channel {
                 }
               } catch (err) {
                 logger.warn({ err, jid: chatJid }, 'Image - download failed');
+              }
+            }
+
+            // PDF document handling
+            const docMsg = normalized?.documentMessage;
+            if (docMsg?.mimetype === 'application/pdf') {
+              try {
+                const buffer = await downloadMediaMessage(msg, 'buffer', {});
+                const groupDir = path.join(GROUPS_DIR, groups[chatJid].folder);
+                const attachDir = path.join(groupDir, 'attachments');
+                fs.mkdirSync(attachDir, { recursive: true });
+                const rawName =
+                  docMsg.fileName ||
+                  `doc-${Date.now()}.pdf`;
+                // Sanitize filename: keep only safe characters
+                const safeName = rawName
+                  .replace(/[^a-zA-Z0-9._-]/g, '_')
+                  .replace(/^\.+/, '_');
+                const filename = safeName.endsWith('.pdf')
+                  ? safeName
+                  : `${safeName}.pdf`;
+                const filePath = path.join(attachDir, filename);
+                fs.writeFileSync(filePath, buffer as Buffer);
+                const caption = docMsg.caption ? ` ${docMsg.caption}` : '';
+                content = `[PDF: attachments/${filename}]${caption}`;
+                logger.info(
+                  { chatJid, filename, bytes: (buffer as Buffer).length },
+                  'PDF saved',
+                );
+              } catch (err) {
+                logger.warn({ err, jid: chatJid }, 'PDF - download failed');
+                content = `[PDF: ${docMsg.fileName || 'document'} — download failed]`;
               }
             }
 
